@@ -1,0 +1,1066 @@
+#__author__ = 'Dheeraj Gundra'
+#__copyright__ = "Copyright 2015, Infor"
+#__version__ = "1.0.0"
+################
+###The CIS Security Benchmarks division provides consensus-oriented information security products, services, 
+####tools, metrics, suggestions, and recommendations. This Code helps use to performace some IIS Hardening.
+################
+import-module AWSPowerShell -errorAction Stop
+Import-module webadministration
+$ErrorActionPreference = "Stop"
+$strtime = Get-Date -format "MM-dd-yyyy HH:mm:ss::ffffff"
+
+function Require_Host_Headers_on_all_Sites($sDomainName)
+{
+  #Description : We are changing the Host Header in the Site Binding. Here, we are checking & applying the 
+  #host header in all the sites. If the Site Host header is not equal to the given Domain, it over rides.
+    write-host "----------Executing Require Host Headers for All Sites --------------"
+    write-host "Domain Name is $sDomainName"
+    $getwebsitelist = get-website
+    $slist = $getwebsitelist.Name
+    write-host "The List of Sites are $slist"
+    foreach ($sSiteName in $slist)
+    {
+        write-host "Site Name selected : "
+        write-host $sSiteName
+        $sWebBinding = Get-WebBinding -Name $sSiteName
+        foreach ($sSite in $sWebBinding)
+         {
+         $sProtocol = $sSite.protocol
+         If ($sProtocol -eq "https" -or $sProtocol -eq "http")
+          {
+           write-host "The Protocol value is $sProtocol"
+           $bindingInfo = $sSite.bindingInformation
+           if($bindingInfo -ne $NULL)
+            {
+             $sDomain = $bindingInfo.split(":")[-1]
+             if([string]::IsNullOrEmpty($sDomain))
+             {
+                     write-host "The Host Header is Null"
+                     write-host "The Binding Information is $bindingInfo"
+                     Set-WebBinding -Name $sSiteName -BindingInformation $bindingInfo -PropertyName HostHeader -Value $sDomainName
+                     write-host "The Host Header value is set to $sDomainName on Site name "$sSiteName
+             }
+             else
+             {
+                if($sDomain -eq $sDomainName)
+                {
+                     write-host "The Host Header is not equal to given Domain Name"
+                     write-host "The Host Header is $sDomain"
+                     write-host "The Binding Information is $bindingInfo"
+                     Set-WebBinding -Name $sSiteName -BindingInformation $bindingInfo -PropertyName HostHeader -Value $sDomainName
+                     write-host "The Host Header value is set to $sDomainName on Site name $sSiteName."
+                }
+             }
+           }
+         }  
+        }   
+    }
+}
+function disable_directory_browrse($scmd,$sexecutecmd)
+{
+  #Ensuring that directory browsing is disabled. We are disabling this on server side.
+    write-host "--------Executing Disable Directory Browrsing-----------"
+    $program="cmd.exe"
+    $program_args=" /c " + $scmd#$env:SystemRoot\system32\inetsrv\appcmd list config /section:directoryBrowse"
+    $program_args_exe=" /c " + $sexecutecmd
+    write-host $program_args
+    $temp = &$program $program_args
+    write-host $temp
+    if([string]::IsNullOrEmpty($temp) -eq $FALSE)
+    {
+        if($temp.contains('  <directoryBrowse enabled="false" />'))
+        {
+         write-host "The Directory Browrse is already in false state"
+        }
+        else
+        {
+        write-host "Executing the Directory Browser & setting it to False"
+        write-host $program_args_exe
+        $temp = &$program $program_args_exe
+        write-host $temp
+        }
+        
+    }
+}
+
+function Default_Application_Pool_Identity()
+{
+#Description : Changing the Application pool identity to false. Here we are channging for all the sites. 
+write-host "--------Executing Default App Pool Identity to least Privilege Priniciple----------"
+$program="cmd.exe"
+$sAppList = Get-ChildItem IIS:\apppools
+$sAppListName = $sAppList.Name
+foreach ($AppName in $sAppListName)
+{
+write-host "The Application Pool Name is $AppName"
+$sexecutecmd = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:applicationPools /[name='" + $AppName + "'].processModel.identityType:ApplicationPoolIdentity"
+write-host $sexecutecmd
+$program_args_exe=" /c " + $sexecutecmd
+$getDefaultAppPoolinfo = Get-Item IIS:\AppPools\$AppName
+$getIdentityType = $getDefaultAppPoolinfo.processModel.identityType
+if([string]::IsNullOrEmpty($getIdentityType) -eq $FALSE)
+ {
+    write-host "identityType is $getIdentityType"
+   if ($getIdentityType -eq "ApplicationPoolIdentity")
+   {
+    write-host "The default Application Pool identity value is already ApplicationPoolIdentity on $AppName App Pool"
+   }
+   else 
+   {
+    write-host "Setting identity value is ApplicationPoolIdentity on $AppName App Pool"
+    write-host $program_args_exe
+    $temp = &$program $program_args_exe
+    write-host "The Result is :"
+    write-host $temp
+   }
+ }
+ else 
+ {
+  write-host "The identity Type is null."
+  write-host "Setting identity value is ApplicationPoolIdentity on $AppName App Pool"
+    write-host $program_args_exe
+    $temp = &$program $program_args_exe
+    write-host "The Result is :"
+    write-host $temp
+ }
+}
+}
+#$sexecutedefaultappidentity = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:applicationPools /[name='DefaultAppPool'].processModel.identityType:ApplicationPoolIdentity"
+
+function Configure_Anonymous_User_Identity()
+{
+  #scored
+    write-host "--------Executing Configure Anonymous User Identity-----------"
+    write-host "Checking & Running for Server Level to set userName = null..."
+    #$sUserName = Get-WebConfigurationProperty  -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/authentication/anonymousAuthentication" -name "userName"
+    #$getUsername = $sUserName.value
+    #if([string]::IsNullOrEmpty($getUsername) -eq $FALSE)
+     #{
+      #Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/authentication/anonymousAuthentication" -name "userName" -value ""
+     #}
+    #else
+     #{
+      #write-host "The User Anonymous User Identity User Name is already empty."
+     #}
+     write-host "Checking & Running for All the Sites to set userName = null..."
+     $getwebsitelist = get-website
+     $slist = $getwebsitelist.Name
+     foreach ($sSiteName in $slist)
+      {
+        $spath = "IIS:\Sites\"+$sSiteName
+       write-host "Site Name is $sSiteName"
+       $sUserNameSite = Get-WebConfigurationProperty  -pspath $spath -filter "system.webServer/security/authentication/anonymousAuthentication" -name "userName"
+       $getUsernameSite = $sUserNameSite.value
+       if([string]::IsNullOrEmpty($getUsernameSite) -ne $TRUE)
+        {
+          write-host "The result is :$getUsernameSite"
+         Set-WebConfigurationProperty -pspath $spath -filter "system.webServer/security/authentication/anonymousAuthentication" -name "userName" -value ""
+        }
+       else
+        {
+         write-host "The User Anonymous User Identity User Name is already empty for Site name $sSiteName."
+        }
+      }
+}
+
+function Configure_AppPools_Application_Pool_Identity()
+{
+    #appcmd list apppool /apppool.name:InforEPAK -text:processModel.identityType
+#%systemroot%\system32\inetsrv\appcmd list config /section:applicationPools /[name='InforION'].processModel.identityType:ApplicationPoolIdentity
+#$env:SystemRoot\system32\inetsrv\appcmd set config /section:applicationPools /[name='InforION'].processModel.identityType:ApplicationPoolIdentity
+    write-host "----Executing Configure AppPools Application Pool Identity------ "
+$program="cmd.exe"
+$sAppList = Get-ChildItem IIS:\apppools
+$sAppListName = $sAppList.Name
+foreach ($AppName in $sAppListName)
+{
+write-host "The Application Pool Name is $AppName"
+$sexecutecmd = "$env:SystemRoot\system32\inetsrv\appcmd list appool /appool.name:"+$AppName+" -text:processModel.identityType"
+write-host $sexecutecmd
+$program_args_exe=" /c " + $sexecutecmd
+$tempidentityType = &$program $program_args_exe
+if([string]::IsNullOrEmpty($tempidentityType) -eq $FALSE)
+ {
+    write-host "identityType is $getIdentityType"
+   if ($getIdentityType -eq "ApplicationPoolIdentity")
+   {
+    write-host "The default Application Pool identity value is already ApplicationPoolIdentity"
+   }
+   else 
+   {
+    write-host "Setting identity value is ApplicationPoolIdentity"
+    write-host program_args_exe
+    $temp = &$program $program_args_exe
+    write-host "The Result is :"
+    write-host $temp
+   }
+ }
+ else 
+ {
+    write-host program_args_exe
+    $temp = &$program $program_args_exe
+    write-host "The Result is :"
+    write-host $temp
+ }
+}
+}
+
+
+function enable_DynamicIP()
+{
+write-host "---------Executing Enable Dynamic IP function----------"
+$WebIPSecurity = Get-WindowsFeature Web-IP-Security
+Write-Host $WebIPSecurity.Installed
+if( $WebIPSecurity.Installed -eq "True" )
+{
+Write-Host "Web-IP-Security is already installed"
+$scheck_denyByConRequests = Get-WebConfigurationProperty  -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByConcurrentRequests" -name "enabled"
+$denyByConRequestsVal = $scheck_denyByConRequests.Value
+  if([string]::IsNullOrEmpty($denyByConRequestsVal) -eq $FALSE)
+  {
+  write-host "The value of the denyByConcurrentRequests is  $denyByConRequestsVal"
+    if($denyByConRequestsVal -eq $FALSE)
+    {
+      ###Set-WebConfigurationProperty -PSPath "IIS:\Sites\InforION" -filter "system.web/authentication/forms" -name "protection" -value 'All'
+        Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByConcurrentRequests" -name "enabled" -value "True"
+        Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByConcurrentRequests" -name "maxConcurrentRequests" -value 20
+        write-host "Set the value of denyByConRequestsVal to true"
+        write-host "Set the value of maxConcurrentRequests to 20"
+    }
+    else
+    {
+        write-host "Dynamic IP for denyByConcurrentRequests is already enabled."
+    }
+  }
+$scheck_denyByRequestRate = Get-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByRequestRate" -name "enabled"
+$denyByRequestRate = $scheck_denyByRequestRate.Value
+if([string]::IsNullOrEmpty($denyByRequestRate) -eq $FALSE){
+write-host "The value of the denyByRequestRate is  $denyByRequestRate"
+  if($denyByRequestRate -eq $FALSE)
+  {
+      write-host "Setting the value of denyByRequestRate to true"
+      write-host "Setting the value of maxRequests to 20"
+      write-host "Setting the value of requestIntervalInMilliseconds to 20"
+      Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByRequestRate" -name "enabled" -value "True"
+      Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByRequestRate" -name "maxRequests" -value 20
+      Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/dynamicIpSecurity/denyByRequestRate" -name "requestIntervalInMilliseconds" -value 20
+  }
+  else
+   {
+      write-host "Dynamic IP for denyByRequestRate is already enabled."
+   }
+}
+}
+else 
+{
+    Write-Host "Web-IP-Security is not installed"
+}
+
+}
+
+function Configure_Global_Authorization_Restrict_Access($accessType,$sUser,$sRoles)
+{
+    write-host "------Executing Configure Global authorization restrict Access-------"
+    $UserPresent = 0
+    $sAllUser = "[accessType='Allow',users='*']"
+    $sAllUser = '"' + $sAllUser +'"'
+    #$RemoveAllowAllUser = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:system.webServer/security/authorization /-" + $sAllUser
+    $program="cmd.exe"
+    $program_args_exe=" /c " + $RemoveAllowAllUser
+    $sUserName = Get-WebConfigurationProperty  -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/authorization" -Name Collection
+    foreach($sval in $sUserName)
+    {
+        If ($sval.accessType -eq "Allow" -and $sval.users -eq "*")
+        {
+            write-host "Removing the value with has full permission"
+            $sAllUser = "[accessType='Allow',users='*']"
+            $sAllUser = '"' + $sAllUser +'"'
+            $RemoveAllowAllUser = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:system.webServer/security/authorization /-" + $sAllUser
+            $program="cmd.exe"
+            $program_args_exe=" /c " + $RemoveAllowAllUser
+            $temp = &$program $program_args_exe
+            write-host "The Result is :"
+            write-host $temp
+
+        }
+        If ($sval.accessType -eq $accessType -and $sval.users -eq $sUser -and $sRoles)
+        {
+            $UserPresent = 1
+
+        }
+
+    }
+    if($UserPresent -ne 1)
+    {
+        write-host "Setting the New value..."
+        $sAllUser = "[accessType='" + $accessType + "',roles='" + $sRoles + "',users='" + $sUser + "']"
+        $sAllUser = '"' + $sAllUser +'"'
+        $RemoveAllowAllUser = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:system.webServer/security/authorization /+" + $sAllUser
+        $program="cmd.exe"
+        $program_args_exe=" /c " + $RemoveAllowAllUser
+        $temp = &$program $program_args_exe
+        write-host "The Result is :"
+        write-host $temp
+
+    }
+}
+
+function Ensure_Access_to_Sensitive_site()
+{
+  #scored
+    write-host "--------Executing Ensure Access to Sensitive site-----------"
+    write-host "Checking & Running for Server Level to set userName = null..."
+    $sUserName = Get-WebConfigurationProperty  -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/authentication/anonymousAuthentication" -name "Enabled"
+    $getUsername = $sUserName.value
+    if([string]::IsNullOrEmpty($getUsername) -eq $FALSE)
+     {
+      if($getUsername -eq $FALSE)
+      {
+        Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/authentication/anonymousAuthentication" -name "Enabled" -value $TRUE
+      }
+      else{write-host "The anonymous Authentication is already enabled to true."}
+     }
+}
+
+
+function Require_SSL_Forms_Authentication()
+{
+  write-host "Executing Require SSL Forms Authentication"
+  $sSitename = Get-ChildItem IIS:\Sites
+$sSitenameFull = $sSitename.Name
+foreach ($sAppListName in $sSitename)
+ {
+ $spath = "IIS:\Sites\"+$sAppListName.Name
+$scheckrequireSSL = Get-WebConfigurationProperty -PSPath $spath -location $sAppListName -filter "system.web/authentication/forms" -name "requireSSL"
+$requireSSLVal = $scheckrequireSSL.Value
+if([string]::IsNullOrEmpty($requireSSLVal) -eq $FALSE){
+write-host "The requireSSL is $requireSSLVal"
+if($requireSSLVal -eq $FALSE)
+{
+Set-WebConfigurationProperty -PSPath $spath -filter "system.web/authentication/forms" -name "requireSSL" -value $TRUE
+write-host "The requireSSL is set to True "
+}
+else
+{
+     write-host "Require SSL Forms Authentication is already enabled."
+}
+}
+}
+}
+
+function Configure_Forms_Authentication_Use_Cookies()
+{
+write-host "-------Executing Configure Forms Authentication Use Cookies--------"
+$sSitename = Get-ChildItem IIS:\Sites
+$sSitenameFull = $sSitename.Name
+foreach ($sAppListName in $sSitename)
+ {
+  $spath = "IIS:\Sites\"+$sAppListName.Name
+$scheckCookie_Protection_Mode = Get-WebConfigurationProperty  -PSPath $spath -filter "system.web/authentication/forms" -name "cookieless"
+$Cookie_Protection_Mode = $scheckCookie_Protection_Mode
+if([string]::IsNullOrEmpty($Cookie_Protection_Mode) -eq $FALSE){
+if($Cookie_Protection_Mode -ne "UseCookies")
+{
+Set-WebConfigurationProperty -PSPath $spath -filter "system.web/authentication/forms" -name "cookieless" -value "UseCookies"
+}
+else
+{
+     write-host "Configure Forms Authentication Use_Cookies is already UseCookies for the site "
+}
+}
+}
+}
+
+function Configure_Cookies_Protection_Forms_Auth()
+{
+  write-host "-------Executing Configure Cookies Protection Forms Auth--------"
+  $sSitename = Get-ChildItem IIS:\Sites
+$sSitenameFull = $sSitename.Name
+foreach ($sAppListName in $sSitename)
+ {
+  $spath = "IIS:\Sites\"+$sAppListName.Name
+$scheckCookie_Protection_Mode = Get-WebConfigurationProperty  -PSPath $spath  -filter "system.web/authentication/forms" -name "protection"
+$Cookie_Protection_Mode = $scheckCookie_Protection_Mode
+if([string]::IsNullOrEmpty($Cookie_Protection_Mode) -eq $FALSE){
+  write-host "The value is $Cookie_Protection_Mode"
+if($Cookie_Protection_Mode -ne "All")
+{
+Set-WebConfigurationProperty -PSPath $spath -filter "system.web/authentication/forms" -name "protection" -value "All"
+}
+else
+{
+     write-host "Configure Cookie Protection Mode is already All."
+}
+}
+}
+}
+
+function Lock_down_Encryption_Providers($sexecutecmd)
+{
+    write-host "------Executing Lock Down Encryption Providers--------"
+    $program="cmd.exe"
+    $program_args_exe=" /c " + $sexecutecmd
+    write-host $program_args
+    $temp = &$program $program_args
+    write-host $temp
+}
+
+function Set_Deployment_Method_to_Retail($XmlFile)
+{
+  write-host "---------Executing the Set Deployment Method to Retail----------"
+  write-host "The Input XML file is $XmlFile"
+  if(Test-Path $XmlFile)
+  {
+      #$XmlFile = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\Config\machinenew.config"
+      $xml = [xml](get-content $XmlFile)
+      $root = $xml.get_DocumentElement()
+      $system_web = $root."system.web"
+      write-host $system_web
+      if ($system_web -ne $null)
+      {
+        if ($system_web.deployment -eq $null)
+         { 
+              write-host "deployment tag is not present."
+              $gc = $xml.CreateElement("Deployment")
+              $gc.SetAttribute("retail", "true")
+              $system_web.AppendChild($gc)
+              $xml.save($XmlFile)
+              write-host write-host "The Deployment Retail value is changed to true"
+          }
+          else
+          {
+            write-host "Deployment tag exists in the XML"
+            $sretail = $system_web.Deployment
+            if($sretail.Retail -ne $TRUE)
+            {
+              write-host "The Deployment Retail value is "$sretail.Retail
+              $sretail.SetAttribute("retail",$TRUE)
+              $xml.Save($XmlFile)
+              write-host "The Deployment Retail value is changed to true"
+            }
+            else
+            {
+                write-host "The Deployment Retail value is already true"
+            }
+          }
+        }
+      }
+}
+
+function Set_Deployment_Method_to_Retail_ALLAPP()
+{
+$sSitename = Get-ChildItem IIS:\Sites
+$sSitenameFull = $sSitename.Name
+foreach ($sAppListName in $sSitename)
+ {
+    write-host "Site Name is "$sAppListName.Name
+    write-host "Site Physical Path is "$sAppListName.physicalPath
+    $sSiteloc = $sAppListName.physicalPath
+    $sSitewebconfigFile = $sSiteloc + "\web.config"
+    if(Test-Path $sSitewebconfigFile)
+        {
+        write-host "The Site Web config file is $sSitewebconfigFile"
+        Set_Deployment_Method_to_Retail -XmlFile $sSitewebconfigFile
+        }
+    $sGetSites = Get-WebApplication -Site $sAppListName.Name
+    foreach ($getSiteinfo in $sGetSites)
+    {
+      write-host "Application Name is "$($getsiteinfo.Attributes | ?{$_.Name -eq 'path'}).value
+      write-host "Path is "$getSiteinfo.physicalPath
+      $AppPath = $getSiteinfo.physicalPath
+      $SwebconfigFile = $AppPath + "\web.config"
+      if(Test-Path $SwebconfigFile)
+        {
+          write-host "The Web config file is $SwebconfigFile"
+          Set_Deployment_Method_to_Retail -XmlFile $SwebconfigFile
+        }
+    }
+ }
+}
+function turn_debug_off()
+{
+#system.web/compilation  debug == false
+write-host "--------Executing Turn Debug Off ----------"
+write-host "--------Executing in Server level----------"
+write-host "Checking & Running for All the Sites to set Debug = False..."
+$getwebsitelist = get-website
+$slist = $getwebsitelist.Name
+foreach ($sSiteName in $slist)
+ {
+  $spath = "IIS:\Sites\"+$sSiteName.Name
+    write-host "Site Name is $sSiteName"
+    $sdebug = Get-WebConfigurationProperty  -PSPath $spath -filter "system.web/compilation" -name "debug"
+    write-host $sdebug
+    $getsdebug = $sdebug.value
+    if([string]::IsNullOrEmpty($getsdebug) -eq $FALSE)
+     {
+        if($getsdebug -ne $FALSE)
+        {
+         Set-WebConfigurationProperty -PSPath $spath -filter "system.web/compilation" -name "debug" -value $FALSE
+         write-host "The value debug is set to false for Site name $sSiteName. "
+        }
+        else
+        {
+         write-host "Turn Debug off is already false for Site name $sSiteName."
+        }
+     }
+    
+ }
+}
+
+function Custom_Error_Messages_are_not_Off()
+{
+  write-host "--------Executing Custom Error Messages-------------"
+    #system.web/customErrors
+    $getwebsitelist = get-website
+$slist = $getwebsitelist.Name
+foreach ($sSiteName in $slist)
+ {
+  $spath = "IIS:\Sites\"+$sSiteName
+    write-host "Site Name is $sSiteName"
+    write-host "--------Executing Custom Error Messages are not Off----------"
+    $scheckCookie_Protection_Mode = Get-WebConfigurationProperty  -pspath $spath -filter "system.web/customErrors" -name "mode"
+    $Cookie_Protection_Mode = $scheckCookie_Protection_Mode
+    if([string]::IsNullOrEmpty($Cookie_Protection_Mode) -eq $FALSE)
+    {
+      if($Cookie_Protection_Mode -eq "Off")
+      {
+      Set-WebConfigurationProperty -pspath $spath -filter "system.web/customErrors" -name "mode" -value "On"
+      }
+      else
+      {
+           write-host "Custom Error Messages are already in Off Mode."
+      }
+    }
+}
+}
+
+function Configure_Use_Cookies_Mode_for_Session_State()
+{
+    write-host "-------Executing Configure Use Cookies Mode for Session State--------"
+    $getwebsitelist = get-website
+    $slist = $getwebsitelist.Name
+    write-host "The list of Sites :"
+    write-host $slist
+    foreach ($sSiteName in $slist)
+    {
+      $spath = "IIS:\Sites\"+$sSiteName
+        write-host "The Site Name is $sSiteName"
+        $scheckCookie_Protection_Mode = Get-WebConfigurationProperty  -pspath $spath -filter "system.web/sessionState" -name "cookieless"
+        $Cookie_Protection_Mode = $scheckCookie_Protection_Mode
+        if([string]::IsNullOrEmpty($Cookie_Protection_Mode) -eq $FALSE)
+        {
+         if($Cookie_Protection_Mode -ne "UseCookies")
+         {
+         Set-WebConfigurationProperty -pspath $spath -filter "system.web/sessionState" -name "cookieless" -value "UseCookies"
+         }
+         else
+         {
+              write-host "Custom Error Messages are already in Off Mode."
+         }
+        }
+        #system.web/sessionState
+    }
+}
+
+function Configure_MachineKey_Validation_Method()
+{
+    #system.web/machineKey
+
+    write-host "--------Executing Configure Machine Key Method----------"
+    $getwebsitelist = get-website
+    $slist = $getwebsitelist.Name
+    write-host "The list of Sites :"
+    write-host $slist
+    foreach ($sSiteName in $slist)
+    {
+      $spath = "IIS:\Sites\"+$sSiteName
+    $smachinekey = Get-WebConfigurationProperty  -pspath $spath  -filter "system.web/machineKey" -name "validation"
+    $smachinekeyval = $smachinekey
+    if([string]::IsNullOrEmpty($smachinekeyval) -eq $FALSE)
+    {
+      write-host "The value is $smachinekeyval"
+    if($smachinekeyval -ne "SHA1")
+     {
+      Set-WebConfigurationProperty -pspath $spath -filter "system.web/machineKey" -name "validation" -value "SHA1"
+      write-host "The value is set to SHA1"
+     }
+    else
+     {
+     write-host "Configure machine Key already SHA1"
+     }
+   }
+}
+}
+
+function configure_net_trust_level()
+{
+    #Configure Global .NET Trust Level  --> level == Medium
+    #system.web/trust
+    write-host "--------Executing Configure .Net Trust----------"
+    $getwebsitelist = get-website
+    $slist = $getwebsitelist.Name
+    write-host "The list of Sites :"
+    write-host $slist
+    foreach ($sSiteName in $slist)
+    {
+      $spath = "IIS:\Sites\"+$sSiteName
+    $strust = Get-WebConfigurationProperty  -pspath $spath  -filter "system.web/trust" -name "level"
+    $strustval = $strust.Value
+    if([string]::IsNullOrEmpty($strustval) -eq $FALSE)
+    {
+      write-host "The value of the Truest Level is $strustval"
+    if($strustval -ne "Medium")
+    {
+          Set-WebConfigurationProperty -pspath $spath -filter "system.web/trust" -name "level" -value "Medium"
+          write-host "The Value of the >netTruest Level is Medium"
+    }
+    else
+    {
+         write-host "Configure.Net Trust already Medium"
+    }
+  }
+}
+}
+
+function hide_iis_http_errors()
+{
+    #Hide IIS HTTP Detailed Errors from Displaying Remotely (Scored)
+#system.webServer/httpErrors    errorMode --> Custom
+write-host "-------Executing Hide IIS Http Errors----------"
+write-host "Checking & Running for All the Sites.."
+$getwebsitelist = get-website
+$slist = $getwebsitelist.Name
+foreach ($sSiteName in $slist)
+ {
+  $spath = "IIS:\Sites\"+$sSiteName
+    write-host "Site Name is $sSiteName"
+    $sdebug = Get-WebConfigurationProperty  -pspath $spath -filter "system.webServer/httpErrors" -name "errorMode"
+    write-host $sdebug
+    $getsdebug = $sdebug
+    if([string]::IsNullOrEmpty($getsdebug) -eq $FALSE)
+     {
+        if($getsdebug -ne "DetailedLocalOnly")
+        {
+         Set-WebConfigurationProperty -pspath $spath -filter "system.webServer/httpErrors" -name "errorMode" -value "DetailedLocalOnly"
+        }
+        else
+        {
+         write-host "Hide IIS HttpErrors is already DetailedLocalOnly for Site name $sSiteName."
+        }
+     }  
+ }
+}
+
+ function Configure_maxAllowedContentLength_Request_Filter()
+{
+
+ #Configure maxAllowedContentLength Request Filter (Not Scored)
+ #system.webServer/security/requestFiltering/requestsLimits --> maxAllowedContentLength --> 30000000
+ write-host "-------Executing Hide IIS Http Errors----------"
+  $maxallowedcontentlength = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:requestfiltering /requestlimits.maxallowedcontentlength:30000000"
+  $program="cmd.exe"
+  $program_args_exe=" /c " + $maxallowedcontentlength
+  write-host "Executing the following command : $program_args_exe"
+  write-host "The result is : "
+  $temp = &$program $program_args_exe
+  write-host "The Result is :"
+  write-host $temp
+}
+
+function Configure_maxURL_Request_Filter()
+{
+    #system.webServer/security/requestFiltering/requestsLimits
+    #appcmd set config /section:requestfiltering /requestlimits.maxallowedcontentlength:30000000
+    write-host "-------Executing Configure maxURL Request Filter---------"
+        $smaxurl = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:requestfiltering /requestlimits.maxurl:2048"
+        $program="cmd.exe"
+        $program_args_exe=" /c " + $smaxurl
+        write-host "Executing the following command : $program_args_exe"
+        $temp = &$program $program_args_exe
+        write-host "The result is : "
+        write-host $temp
+}
+
+function Configure_MaxQueryString_Request_Filter()
+{
+    write-host "-------Executing Configure MaxQueryString Request Filter"
+    #appcmd set config /section:requestfiltering /requestlimits.maxquerystring:2048
+     #system.webServer/security/requestFiltering/requestsLimits
+     $smaxquerystring = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:requestfiltering /requestlimits.maxquerystring:2048"
+        $program="cmd.exe"
+        $program_args_exe=" /c " + $smaxquerystring
+        write-host "Executing the following command : $program_args_exe"
+        $temp = &$program $program_args_exe
+        write-host "The result is : "
+        write-host $temp
+}
+
+function Disallow_non-ASCII_Characters_in_URL()
+{
+    write-host "-------Executing Disallow_non-ASCII Characters in URL---------"
+    #appcmd set config /section:requestfiltering /allowhighbitcharacters:false
+    $sallowhighbitcharacters = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:requestfiltering /allowhighbitcharacters:false"
+    $program="cmd.exe"
+    $program_args_exe=" /c " + $sallowhighbitcharacters
+    write-host "Executing the following command : $program_args_exe"
+    $temp = &$program $program_args_exe
+    write-host "The result is : "
+    write-host $temp
+}
+
+
+function Double_Encoded_Requests()
+{
+     #system.webServer/security/requestFiltering/requestsLimits
+     #appcmd set config /section:requestfiltering /allowdoubleescaping:true
+     write-host "--------Executing Double Encoded Requests--------"
+        $sallowdoubleescaping = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:requestfiltering /allowdoubleescaping:false"
+        $program="cmd.exe"
+        $program_args_exe=" /c " + $asllowdoubleescaping
+        write-host "Executing the following command : $program_args_exe"
+        $temp = &$program $program_args_exe
+        write-host "The result is : "
+        write-host $temp
+}
+
+function Disallow_Unlisted_File_Extensions()
+{
+      #system.webServer/security/requestFiltering/requestsLimits
+      #appcmd set config /section:requestfiltering /fileExtensions.allowunlisted:false
+    write-host "--------Executing Disallow Unlisted File Extensions--------"
+    $sallowunlisted = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:requestfiltering /fileExtensions.allowunlisted:false"
+    $program="cmd.exe"
+    $program_args_exe=" /c " + $sallowunlisted
+    write-host "Executing the following command : $program_args_exe"
+    $temp = &$program $program_args_exe
+    write-host "The result is : "
+    write-host $temp
+}
+
+function Configuration_Attribute_notListedIsapisAllowed()
+{
+  write-host "-------Executing Configuration Attribute notListedIsapisAllowed-------"
+      #system.webServer/security/isapiCgiRestriction
+      $path = 'MACHINE/WEBROOT/APPHOST'
+     $filter = "system.webServer/security/isapiCgiRestriction"
+     $name = "notListedIsapisAllowed"
+     $value = $FALSE
+     common_GetSetWebConfigurationProperty -path $path -filter $filter -name $name -value $value -summary "Configuration Attribute notListedCgisAllowed"  
+}
+
+function Configuration_Attribute_notListedCgisAllowed()
+{
+  #Server
+  write-host "-------Executing Configuration Attribute notListedCgisAllowed-------"
+     #system.webServer/security/isapiCgiRestriction
+     $path = 'MACHINE/WEBROOT/APPHOST'
+     $filter = "system.webServer/security/isapiCgiRestriction"
+     $name = "notListedCgisAllowed"
+     $value = $FALSE
+     common_GetSetWebConfigurationProperty -path $path -filter "system.webServer/security/isapiCgiRestriction" -name $name -value $value -summary "Configuration Attribute notListedCgisAllowed"
+}
+#Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT' -filter "system.webServer/security/isapiCgiRestriction" -name "notListedCgisAllowed" -value "false"
+
+function Disable_HTTP_Trace_Method()
+{
+  write-host "--------Executing Disable HTTP Trace Method------------"
+  #Get-WebConfigurationProperty  -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/requestFiltering" -Name verbs
+  $strTrace = 0
+ $sUserName = Get-WebConfigurationProperty  -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.webServer/security/requestFiltering" -Name verbs
+ $val = $sUserName.Collection
+ $strace = $val.verb# --> This will return the array....Check here...
+ foreach($sval in $strace)
+    {
+        If ($sval-eq "TRACE")
+        {
+        }
+        If ($sval.accessType -eq $accessType -and $sval.users -eq $sUser -and $sRoles)
+        {
+            $UserPresent = 1
+        }
+
+    }
+    if($UserPresent -ne 1)
+    {
+        write-host "Setting the New value..."
+        $sAllUser = "[accessType='" + $accessType + "',roles='" + $sRoles + "',users='" + $sUser + "']"
+        $sAllUser = '"' + $sAllUser +'"'
+        write-host $sAllUser
+        $RemoveAllowAllUser = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:system.webServer/security/authorization /+" + $sAllUser
+        $program="cmd.exe"
+        $program_args_exe=" /c " + $RemoveAllowAllUser
+        $temp = &$program $program_args_exe
+        write-host "The Result is :"
+        write-host $temp
+
+    }
+}
+
+
+function checkWrite_registry_int($RegPath,$regName,[int]$regValue,$summary)
+{
+     write-host "--------Executing $summary ------------"
+     write-host "Reading registry Path $RegPath for the Name $regName"
+     $setval = ""
+     If (Test-Path $RegPath)
+     {
+        $RegDefaultVal = Get-ItemProperty -path $RegPath -Name $regName
+        [int]$val = $RegDefaultVal.$regName
+        if($val -ne $null)
+        {
+          write-host "The value from registry is : $val"
+         if($val -ne $regValue)
+         {
+           Set-ItemProperty -path $RegPath -Name $regName -value $regValue
+           write-host "Setting the registry of $regName to $regValue"
+         }
+         else{write-host "Reading registry value $regName for Path $RegPath is already $regValue"}
+        }
+        else{write-host "The registry Value of $regName in path $RegPath is null"}
+     }
+     else
+     {write-host "Reading registry Path $RegPath is null or does not exist."}
+}
+
+function checkWrite_registry_str($RegPath,$regName,$regValue,$summary)
+{
+    write-host "--------Executing $summary ------------"
+    write-host "Reading registry Path $RegPath for the Name $regName"
+    $setval = ""
+     If (Test-Path $RegPath)
+     {
+        $RegDefaultVal = Get-ItemProperty -path $RegPath -Name $regName
+        $val = $RegDefaultVal.$regName
+        if($val -ne $null)
+        {
+          write-host "The value from registry is : $val"
+         if($val -ne $regValue)
+         {
+           Set-ItemProperty -path $RegPath -Name $regName -value $regValue
+           write-host "Setting the registry of $regName to $regValue"
+         }
+         else{write-host "Reading registry value $regName for Path $RegPath is already $regValue"}
+        }
+        else{write-host "The registry Value of $regName in path $RegPath is null"}
+     }
+     else{write-host "Reading registry Path $RegPath is null or does not exist."}
+}
+
+
+function Enable_AES_256_256_Cipher_Suite()
+{
+  write-host "-------Executing Configure AES 256/256 Cipher----------"
+ $RegPath ="HKLM\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\AES 256/256"
+ $regName = "Enabled"
+ $regValue = "0xFFFFFFFF"
+ $summary = "Enable AES 256-256 Cipher Suite"
+ checkWrite_registry_str -RegPath $RegPath -regName $regName -regValue $regValue -summary $summary
+}
+
+function Configure_AES_128_128_Cipher_Suite()
+{
+  write-host "-------Executing Configure AES 128/128 Cipher----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\AES 128/128"
+    $regName = "Enabled"
+    $regValue = "0xFFFFFFFF"
+    $summary = "Configure AES 128-128 Cipher Suite"
+    checkWrite_registry_str -RegPath $RegPath -regName $regName -regValue $regValue -summary $summary
+}
+
+function Configure_Triple_DES_Cipher_Suite()
+{
+  write-host "-------Executing Configure Triple DES Cipher----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\Triple DES 168/168"
+    $regName = "Enabled"
+    $regValue = "0xFFFFFFFF"
+    $summary = "Configure Triple DES Cipher Suite"
+    checkWrite_registry_str -RegPath $RegPath -regName $regName -regValue $regValue -summary $summary
+}
+
+function Disable_RC4_Cipher_Suites()
+{
+  write-host "-------Executing Disable RC4 Cipher----------"
+    $RegPath40 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC4 40/128"
+    $RegPath56 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC4 56/128"
+    $RegPath64 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC4 64/128"
+    $RegPath128 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC4 128/128"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath40 -regName $regName -regValue $regValue -summary "Disable RC4 40/128"
+    checkWrite_registry_int -RegPath $RegPath56 -regName $regName -regValue $regValue -summary "Disable RC4 56/128"
+    checkWrite_registry_int -RegPath $RegPath64 -regName $regName -regValue $regValue -summary "Disable RC4 64/128"
+    checkWrite_registry_int -RegPath $RegPath128 -regName $regName -regValue $regValue -summary "Disable RC4 128/128"
+}
+
+
+function Disable_RC2_Cipher_Suites()
+{
+  write-host "-------Executing Disable RC2 Cipher----------"
+    $RegPath40 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC2 40/128"
+    $RegPath56 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC2 56/128"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath40 -regName $regName -regValue $regValue -summary "Disable RC2 40/128"
+    checkWrite_registry_int -RegPath $RegPath56 -regName $regName -regValue $regValue -summary "Disable RC2 56/128"
+}
+
+function Disable_DES_Cipher_Suites()
+{
+    write-host "-------Executing Disable DES Cipher----------"
+    $RegPath40 ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\DES 56/56"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath40 -regName $regName -regValue $regValue -summary "Disable DES 56/56"
+}
+
+function Disable_NULL_Cipher_Suites()
+{
+    write-host "-------Executing Disable Null Cipher----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\NULL"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Disable NULL Cipher Suites"
+}
+
+function Enable_TLS_1_2()
+{
+  write-host "-------Executing Configure TLS 1.2----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server"
+    $regName = "DisabledByDefault"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Enable TLS 1.2 DisabledByDefault"
+    $regName = "Enabled"
+    $regValue = "0xFFFFFFFF"
+    checkWrite_registry_str -RegPath $RegPath -regName $regName -regValue $regValue -summary "Enable TLS 1.2 Enabled"
+}
+
+function Configure_TLS_1_1()
+{
+    write-host "-------Executing Configure TLS 1.1----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server"
+    $regName = "DisabledByDefault"
+    $regValue = 1
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Enable TLS 1.1 DisabledByDefault"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Enable TLS 1.1 Enabled"
+}
+
+function Configure_TLS_1()
+{
+    write-host "-------Executing Configure TLS 1----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server"
+    $regName = "DisabledByDefault"
+    $regValue = 1
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Enable TLS 1.0 DisabledByDefault"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Enable TLS 1.0 Enabled"
+}
+
+function Disable_SSLv2()
+{
+    write-host "-------Executing Disable SSL v2----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server"
+    $regName = "DisabledByDefault"
+    $regValue = 1
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Disable SSL2 DisabledByDefault"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Disable SSL2 Enabled"
+}
+
+function Disable_SSLv3()
+{
+    write-host "-------Executing Disable SSL v3----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server"
+    New-Item $RegPath
+    write-host "Created Registry key : $RegPath"
+    Set-ItemProperty -Path $RegPath -Name DisabledByDefault -Value 1 -Type DWord
+    write-host "Setting DisabledByDefault to 1"
+    Set-ItemProperty -Path $RegPath -Name Enabled -Value 0 -Type DWord
+    write-host "Setting Enabled to 0"
+}
+
+function Disable_PCT_1()
+{
+    write-host "-------Executing Disable PCT 1----------"
+    $RegPath ="HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\PCT 1.0\Server"
+    $regName = "DisabledByDefault"
+    $regValue = 1
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Disable PCT 1.0 DisabledByDefault"
+    $regName = "Enabled"
+    $regValue = 0
+    checkWrite_registry_int -RegPath $RegPath -regName $regName -regValue $regValue -summary "Disable PCT 1.0 Enabled"
+}
+
+
+function common_GetSetWebConfigurationProperty($path,$filter,$name,$value,$summary)
+{
+    write-host "--------Executing $summary -----------"
+    write-host "Path is $path"
+    write-host "Filter is $filter"
+    write-host "Name is $name"
+    $getVal = Get-WebConfigurationProperty  -pspath $path -filter $filter -name $name
+    $sval = $getVal.Value
+    if([string]::IsNullOrEmpty($sval) -eq $FALSE)
+    {
+      write-host "The Value of $name is : $sval"
+      if($sval -ne $value)
+      {
+        Set-WebConfigurationProperty -pspath $path -filter $filter -name $name -value $value
+        write-host "The Value of $name is set to : $value"
+      }
+      else
+      {
+          write-host "$summary are already value $value."
+      }
+    }
+    else
+    {
+      write-host "The Value fetching from Get-WebConfigurationProperty is null."
+    }
+}
+try
+{
+  #####Main main section########
+  $IISHostHeader = "and-hardening4.cloud.infor.com"
+  ##alergetic to mingle #Require_Host_Headers_on_all_Sites -sDomainName $IISHostHeader
+  $sdirectoryBrowse="$env:SystemRoot\system32\inetsrv\appcmd list config /section:directoryBrowse"
+  $sexecutedirectoryBrowse = "$env:SystemRoot\system32\inetsrv\appcmd set config /section:directoryBrowse /enabled:false"
+  disable_directory_browrse -scmd $sdirectoryBrowse -sexecutecmd $sexecutedirectoryBrowse
+  Require_SSL_Forms_Authentication
+  Configure_Forms_Authentication_Use_Cookies
+  $scmd = "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\aspnet_regiis.exe -pr iisWasKey IIS_IUSRS"
+  turn_debug_off
+  Custom_Error_Messages_are_not_Off
+  Configure_MachineKey_Validation_Method
+  hide_iis_http_errors
+  Configure_maxAllowedContentLength_Request_Filter
+  Configure_maxURL_Request_Filter
+  Configure_MaxQueryString_Request_Filter
+  Disallow_non-ASCII_Characters_in_URL
+  Double_Encoded_Requests
+  Configuration_Attribute_notListedIsapisAllowed
+  Configuration_Attribute_notListedCgisAllowed
+  Enable_AES_256_256_Cipher_Suite
+  Configure_AES_128_128_Cipher_Suite
+  Configure_Triple_DES_Cipher_Suite
+  Disable_RC4_Cipher_Suites
+  Disable_RC2_Cipher_Suites
+  Disable_DES_Cipher_Suites
+  Disable_NULL_Cipher_Suites
+  Enable_TLS_1_2
+  Configure_TLS_1_1
+  Configure_TLS_1
+  Disable_SSLv2
+  Disable_SSLv3
+  Disable_PCT_1
+}
+catch
+{
+  Write-Host($_.Exception.Message)
+}
+
