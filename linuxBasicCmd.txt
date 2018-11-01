@@ -1,0 +1,265 @@
+Linux basic commands:
+
+Its OS
+
+Its a kernel --> Core of OS (Between Hardware & Applications)
+
+linus Torvalds Started in 1991 from IBM with MS dos...
+
+First version Came in 1994
+
+Its open source
+
+Distribution --> linux kernal + apps
+
+redhat or others...each have diffrent focus 
+
+distrowatch.com
+
+redhat & ubuntu are famous --> both are license based..
+
+centos is free
+fedora""
+debian
+& 100's
+
+
+
+clients
+
+putty
+xshell 
+
+
+
+
+
+http://linux-training.be/linuxfun.pdf
+
+bash vs shell???
+
+
+$ (user)vs #(root)
+
+
+folder structure
+
+/ --> root
+
+/bin --> binaries & executable programs
+
+/etc --> OS System config files..
+
+/home --> Home directories..--> pictures, files.
+
+/opt --> third party tools
+
+/tmp --> temp folder...data is deleted when reboot?
+
+/usr --> user releated programs..
+
+/var --> varible data , log files.
+
+/boot --> For boot OS
+
+
+/lib --> 	System libraries
+
+/lib64 --> 64 bit
+
+
+what is shell?
+
+bash vs shells
+
+
+
+commands are case sensitive...
+
+#!/bin/bash
+
+
+
+
+man
+man ls
+man curl
+ hit q to quit..
+
+date
+
+whoami
+
+hostname
+
+uname
+
+uname -a --> OS
+
+
+ping 
+
+ifconfig
+
+
+pwd --> current location
+
+
+cd --> change diretory
+
+ls --> List
+ls -l --> List Options
+
+
+mkdir/rmdir --> create directory
+
+rm
+
+touch --> create a file
+
+touch hello.txt
+
+vi
+
+vi test.txt
+
+press i button to insert
+
+to save the file, press esc button , :wq
+
+
+cat --> displays content of the file
+
+cat test.txt
+
+cat /etc/hostname
+
+head /etc/passwd --> Read fiesr ten lines...
+
+The head command can also display the first n lines of a file.
+
+ head -4 /etc/passwd
+
+
+
+tail 
+ the tail command will display the last ten lines of a file
+
+ tail /etc/services
+
+
+cp copy
+
+mv copy 
+
+find
+find / -name *.mp3
+
+find / -empty
+
+
+grep 
+
+
+chmod
+
+chmod 754 myfile
+https://www.guru99.com/file-permissions.html
+
+echo
+$x = 10
+
+echo $x 
+
+echo $path
+
+jobs
+
+jobs -l
+jobs -p
+
+jobs -s
+
+
+
+useradd kumar
+
+passwd kumar
+
+
+sudo
+
+df
+
+du -->du estimates and displays the disk space used by files.
+
+tar
+
+tar -cvf tecmint-14-09-12.tar /home/tecmint/
+
+
+
+untar
+
+
+zip/unzip
+
+
+gzip --> Important
+
+apt-get
+
+Vs
+
+yum install
+
+sleep
+
+
+
+sudo lshw
+
+lscpu --> CPU
+
+
+
+
+ps --> process
+ps -A
+
+ps -u kumar
+
+pstree
+
+
+
+Services:
+service --status-all
+
+
+
+
+kill pid
+
+killall
+
+ps aux
+ps ax | grep httpd
+
+perf
+
+
+curl
+
+
+
+top
+
+ test 10 -gt 55 ; echo $?
+
+
+#!/bin/bash
+if [ -f isit.txt ]
+then echo isit.txt exists!
+else echo isit.txt not found!
+fi

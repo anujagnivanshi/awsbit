@@ -1,0 +1,45 @@
+
+    import json
+    import boto3
+    from boto3.session import Session
+
+
+    session = Session(aws_access_key_id='AsfsYZRXV6YGGHMFOLQ',
+                      aws_secret_access_key='TOvtfm5sdasdsadW7NYGX3kkad+Hf',
+                      region_name='ap-south-1')
+
+    dynamodb = session.resource("dynamodb")
+    table = dynamodb.Table('movielist')
+
+    ##with open('C:\Python27\projects\moviedata.json') as data_file:
+    with open('C:\Python27\projects\moviedata.json') as json_file:
+            data = json.load(json_file)
+            for p in data:
+                print('Name: ' + str(p['year']))
+                print('Website: ' + p['title'])
+                if 'directors' in  p['info']:
+                    slistdir = p['info']['directors']
+                    sdirectors = ','.join(slistdir)
+                    print ('Directors: ' + sdirectors)
+                else:
+                    sdirectors = "null"
+
+                if 'release_date' in p['info']:
+                    print ('Release dates:' + p['info']['release_date'])
+                    sreleasedate = str(p['info']['release_date'])
+                else:
+                    sreleasedate = "null"
+                if 'rating' in p['info']:
+                     print ('rating:' + str(p['info']['rating']))
+                     srating = str(p['info']['rating'])
+                else:
+                    srating = "null"
+                table.put_item(
+                    Item={
+                        'Movietitle': p['title'],
+                        'yearofrelease': str(p['year']),
+                        'directors': sdirectors,
+                        'releasedate': sreleasedate,
+                        'rating': srating,
+                    }
+                )
