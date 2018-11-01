@@ -1,0 +1,68 @@
+
+List:
+
+import os
+fulldirs = os.listdir("C:\Program Files")
+print type(fulldirs)
+for ff in fulldirs:
+    print ff
+
+Tuple:
+
+months = ('January','February','March','April','May','June','July','August','September','October','November','  December')
+
+print months[0]
+print type(months)
+
+
+Directionary :
+
+phonebook = {'Andrew Parson':8806336, 'Emily Everett':6784346, 'Peter Power':7658344, 'Lewis Lame':1122345}
+print type(phonebook)
+print phonebook['Peter Power']
+for key, value in phonebook.iteritems():
+    print key
+    print value
+
+
+Files:
+
+strparamsfile = "C:\Python27\README.txt"
+with open(strparamsfile, 'r') as file :
+  filedata = file.read()
+  print filedata
+
+
+# Replace the target string
+filedata = filedata.replace('xyz', 'abc')
+
+# Write the file out again
+with open(strparamsfile, 'w') as file:
+  file.write(filedata)
+
+
+Modules & Functions:
+
+Create a file called as testkelly.py
+
+def add(x, y):
+	    print "we are calling the addition function"
+	    return x + y
+
+def sub(x, y):
+	    print "we are calling the sub function"
+	    return x - y
+
+def divide(x, y):
+	    print "we are calling the addition function"
+	    return x / y
+
+Then type --> import testkelly
+
+print testkelly.add(3,7)
+
+
+
+
+
+
