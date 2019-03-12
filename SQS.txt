@@ -1,0 +1,20 @@
+
+import json
+import boto3
+from boto3.session import Session
+
+
+session = Session(aws_access_key_id='',
+                      aws_secret_access_key='',
+                      region_name='us-east-1')
+
+sqs = boto3.resource('sqs',region_name='us-east-1')
+
+queue_url = 'https://sqs.us-east-1.amazonaws.com/416227743233/learn'
+
+queue = sqs.get_queue_by_name(QueueName='learn')
+
+# Create a new message
+response = queue.send_message(MessageBody='Hello Kelly!')
+
+
