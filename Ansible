@@ -18,6 +18,7 @@ Windows Modules : https://docs.ansible.com/ansible/latest/modules/list_of_window
 Ansible Playbooks
 Ansile roles.
 Ansible Variables.
+Using Vault in playbooks for storing Sensitive information.
 Ansible with Jinja.
 Ansible PUSH...Ansible Pull...With examples...
 
