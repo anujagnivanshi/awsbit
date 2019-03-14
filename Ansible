@@ -1,0 +1,24 @@
+1. Ansible is Python 2.x ..wont run on python 3.x version
+Ansible installation in Censtos. Not supported in windows(Control Server)
+Pre-req:
+pip install MarkupSafe
+pip install xmltodict
+pip install pywinrm
+pip install ansible
+
+Ansible default port number
+
+Ansible uses SSH for linux
+Ansible Uses WinRM for windows.
+check if WinRM is installed well..
+Ansible inventory
+Ansible Commands
+Ansible modules
+Windows Modules : https://docs.ansible.com/ansible/latest/modules/list_of_windows_modules.html
+Ansible Playbooks
+Ansile roles.
+Ansible Variables.
+Ansible with Jinja.
+Ansible PUSH...Ansible Pull...With examples...
+
+Ansible Tower
