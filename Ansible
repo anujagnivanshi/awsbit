@@ -1,4 +1,4 @@
-1. Ansible is Python 2.x ..wont run on python 3.x version
+1. Ansible is Python 2.x ..wont run on python 3.x version. hi
 Ansible installation in Censtos. Not supported in windows(Control Server)
 Pre-req:
 pip install MarkupSafe
